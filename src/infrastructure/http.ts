@@ -1,5 +1,5 @@
 import { CookieJar } from "tough-cookie";
-import { fetch, ProxyAgent, type Dispatcher } from "undici";
+import { FetchClient } from "./fetch.js";
 import { AppError, protocolError } from "../domain/errors.js";
 
 export const ORIGINS = {
@@ -24,7 +24,7 @@ export interface Transport {
   close(): Promise<void>;
 }
 export class HttpTransport implements Transport {
-  private dispatcher: Dispatcher | undefined;
+  private client: FetchClient;
   constructor(
     public jar: CookieJar,
     private requestTimeoutMs = 30000,
@@ -32,7 +32,7 @@ export class HttpTransport implements Transport {
     proxy?: string,
     private origins: Partial<typeof ORIGINS> = ORIGINS,
   ) {
-    if (proxy) this.dispatcher = new ProxyAgent(proxy);
+    this.client = new FetchClient(proxy);
   }
   async request(
     origin: Origin,
@@ -54,12 +54,11 @@ export class HttpTransport implements Transport {
       const headers = { ...options.headers, ...(cookie ? { cookie } : {}) };
       let response;
       try {
-        response = await fetch(url, {
+        response = await this.client.fetch(url, {
           method: options.method ?? "GET",
           body: options.body,
           headers,
           redirect: "manual",
-          dispatcher: this.dispatcher,
           signal: AbortSignal.any([
             AbortSignal.timeout(this.requestTimeoutMs),
             ...(this.signal ? [this.signal] : []),
@@ -114,7 +113,7 @@ export class HttpTransport implements Transport {
     throw protocolError("HTTP 重定向次数过多。");
   }
   async close() {
-    await this.dispatcher?.close();
+    await this.client.close();
   }
 }
 export function apiData(

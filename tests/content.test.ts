@@ -83,6 +83,47 @@ describe("content normalization", () => {
     expect(card).not.toHaveProperty("media");
     expect(card?.list_context?.owner_id).toBe("owner");
   });
+  it("prefers the detail CDN scene, preserves its format and does not label renditions with upload dimensions", async () => {
+    const note = normalizeNote(
+      {
+        note_id: id,
+        type: "normal",
+        image_list: [
+          {
+            file_id: "scene",
+            width: 4000,
+            height: 6000,
+            info_list: [
+              {
+                image_scene: "WB_PRV",
+                url: "https://sns-webpic.xhscdn.com/synthetic!nd_prv_webp_3",
+              },
+              {
+                image_scene: "WB_DFT",
+                url: "https://sns-webpic.xhscdn.com/synthetic!nd_dft_webp_3",
+              },
+            ],
+          },
+        ],
+      },
+      ref,
+      now,
+    );
+    const root = await mkdtemp(join(tmpdir(), "xhs-cdn-template-"));
+    roots.push(root);
+    const plan = await planDownload(note, {
+      ...configSchema.parse({}).download,
+      paths: root,
+      template: "{index:03}.{ext}",
+    });
+    expect(plan.media[0]!.variant).toMatchObject({
+      url: expect.stringContaining("nd_dft"),
+      width: null,
+      height: null,
+    });
+    expect(plan.media[0]!.path).toMatch(/001\.webp$/);
+    expect(note.media[0]!.variants).toHaveLength(2);
+  });
   it("dynamically reads video codec buckets and does not invent a source video", () => {
     const note = normalizeNote(
       {

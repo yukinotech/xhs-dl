@@ -1,4 +1,4 @@
-import { fetch, ProxyAgent, type Dispatcher } from "undici";
+import { FetchClient } from "../infrastructure/fetch.js";
 import {
   open,
   stat,
@@ -87,8 +87,7 @@ export async function transfer(
 ) {
   const part = path + ".part",
     metadata = part + ".json";
-  let dispatcher: Dispatcher | undefined;
-  if (options.proxy) dispatcher = new ProxyAgent(options.proxy);
+  const client = new FetchClient(options.proxy);
   let last: unknown;
   const validate = options.validateUrl ?? mediaUrl;
   const candidate = async (
@@ -115,11 +114,10 @@ export async function transfer(
       old?.etag && !old.etag.startsWith("W/") ? old.etag : old?.last_modified;
     if (!validator) offset = 0;
     let url = validate(raw),
-      response: Awaited<ReturnType<typeof fetch>> | undefined;
+      response: Awaited<ReturnType<FetchClient["fetch"]>> | undefined;
     for (let hop = 0; hop < 5; hop++) {
-      response = await fetch(url, {
+      response = await client.fetch(url, {
         redirect: "manual",
-        dispatcher,
         signal: AbortSignal.any([
           AbortSignal.timeout(options.requestTimeoutMs),
           ...(options.signal ? [options.signal] : []),
@@ -318,7 +316,7 @@ export async function transfer(
       true,
     );
   } finally {
-    await dispatcher?.close();
+    await client.close();
   }
 }
 export function transferOptions(

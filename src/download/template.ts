@@ -96,6 +96,8 @@ export function extension(variant: Variant, media: Media) {
     return value;
   try {
     const url = new URL(variant.url);
+    const rendition = url.pathname.match(/![^/]*_(webp|avif|png|jpe?g)_\d+$/i);
+    if (rendition) return rendition[1]!.toLowerCase().replace("jpeg", "jpg");
     const match = url.pathname.match(/\.([a-z0-9]{2,5})$/i);
     if (
       match &&

@@ -197,10 +197,20 @@ export function normalizeNote(
     images.forEach((raw, index) => {
       const image = obj(raw);
       const base = variant(image, now);
-      const options = arr(pick(image, "info_list", "infoList"))
+      const options = [...arr(pick(image, "info_list", "infoList"))]
+        // The default scene is the detail image; the preview scene may be smaller.
+        .sort(
+          (a, b) =>
+            Number(pick(obj(b), "image_scene", "imageScene") === "WB_DFT") -
+            Number(pick(obj(a), "image_scene", "imageScene") === "WB_DFT"),
+        )
         .map((raw) => {
           const item = obj(raw);
-          return variant({ ...image, ...item }, now);
+          // Parent dimensions describe the source upload, not the CDN rendition.
+          return variant(
+            { ...image, ...item, width: item.width, height: item.height },
+            now,
+          );
         })
         .filter((x): x is Variant => !!x);
       if (base) options.push(base);

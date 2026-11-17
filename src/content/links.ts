@@ -1,4 +1,4 @@
-import { fetch, ProxyAgent, type Dispatcher } from "undici";
+import { FetchClient } from "../infrastructure/fetch.js";
 import { AppError } from "../domain/errors.js";
 import type { Ref } from "../domain/content.js";
 const ID = /^[a-fA-F0-9]{24}$/;
@@ -70,18 +70,16 @@ export async function resolveRef(
       ...(options.source ? { xsec_source: options.source } : {}),
     };
   let url = contentUrl(extractUrl(input));
-  let dispatcher: Dispatcher | undefined;
+  const client = new FetchClient(options.proxy);
   try {
-    if (options.proxy) dispatcher = new ProxyAgent(options.proxy);
     for (
       let hop = 0;
       ["xhslink.com", "www.xhslink.com"].includes(url.hostname);
       hop++
     ) {
       if (hop >= 5) throw new AppError("INVALID_URL", "短链重定向过多。", 2);
-      const response = await fetch(url, {
+      const response = await client.fetch(url, {
         redirect: "manual",
-        dispatcher,
         signal: AbortSignal.any([
           AbortSignal.timeout(options.timeoutMs ?? 30000),
           ...(options.signal ? [options.signal] : []),
@@ -99,7 +97,7 @@ export async function resolveRef(
     if (e instanceof AppError) throw e;
     throw new AppError("NETWORK_ERROR", "短链展开失败或超时。", 6, {}, true);
   } finally {
-    await dispatcher?.close();
+    await client.close();
   }
   const match =
     kind === "user"
