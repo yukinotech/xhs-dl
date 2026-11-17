@@ -1,0 +1,2 @@
+# Keep source, generated docs and formatter input consistent on every OS.
+* text=auto eol=lf
