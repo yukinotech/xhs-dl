@@ -12,13 +12,20 @@ import lockfile from "proper-lockfile";
 import { z } from "zod";
 import type { ContentService } from "../content/service.js";
 import { hash } from "../content/normalize.js";
-import { refSchema } from "../domain/content.js";
-import type { Ref, Note, Summary } from "../domain/content.js";
+import { inspectMedia, variantInfo } from "./media-info.js";
+import { refSchema, mediaInfoSchema } from "../domain/content.js";
+import type { Ref, Note, Summary, MediaInfo } from "../domain/content.js";
 import { AppError } from "../domain/errors.js";
-import { planDownload, selectVariant } from "./planner.js";
+import { planDownload, selectVariant, compareVariants } from "./planner.js";
 import { safePath, type Source } from "./template.js";
-import { transfer, transferOptions, sha256 } from "./transfer.js";
+import {
+  transfer,
+  transferOptions,
+  sha256,
+  type TransferProgress,
+} from "./transfer.js";
 import { checkSignal } from "../infrastructure/timing.js";
+export type DownloadProgress = TransferProgress & { path: string };
 export type DownloadItem = {
   note_id: string | null;
   media_id?: string;
@@ -29,6 +36,9 @@ export type DownloadItem = {
   sha256?: string;
   quality?: string;
   candidates?: string[];
+  media_info?: MediaInfo;
+  resolution?: Note["resolution"];
+  upgraded?: boolean;
   error?: { code: string; message: string };
   source?: Source;
 };
@@ -54,6 +64,16 @@ const entrySchema = z.object({
   role: z.string(),
   quality: z.string(),
   completed_at: z.string(),
+  media_info: mediaInfoSchema.optional(),
+  selection: z
+    .object({
+      width: z.number().nullable(),
+      height: z.number().nullable(),
+      bitrate: z.number().nullable(),
+      original: z.boolean(),
+      scene: z.enum(["detail", "preview", "unknown"]).optional(),
+    })
+    .optional(),
   source: z.object({ owner_id: z.string(), kind: z.string() }).optional(),
 });
 type Entry = z.infer<typeof entrySchema>;
@@ -103,11 +123,14 @@ export class DownloadEngine {
   private transferSettings;
   private archive: string;
   private retained: boolean;
+  private firstFailure: AppError | undefined;
+  private emitted = 0;
   constructor(
     readonly content: ContentService,
     readonly onItem?: (item: DownloadItem) => Promise<void>,
     retain = true,
     private readonly transferFn = transfer,
+    private readonly onProgress?: (event: DownloadProgress) => void,
   ) {
     this.settings = content.config.download;
     this.transferSettings = transferOptions(content.config, content.signal);
@@ -118,6 +141,7 @@ export class DownloadEngine {
     this.retained = retain;
   }
   private async emit(item: DownloadItem) {
+    this.emitted++;
     this.result.summary[item.status]++;
     if (this.retained) this.result.items.push(item);
     await this.onItem?.(item);
@@ -191,6 +215,9 @@ export class DownloadEngine {
       root: resolve(this.settings.paths),
       template: this.settings.template,
       quality: this.settings.quality,
+      ...(this.settings.video_codec !== "auto"
+        ? { video_codec: this.settings.video_codec }
+        : {}),
       media: this.settings.media,
       source,
     });
@@ -245,6 +272,8 @@ export class DownloadEngine {
             status: "planned",
             quality: media.quality,
             candidates: media.candidates,
+            media_info: variantInfo(media.variant),
+            resolution: note.resolution,
             source,
           });
           return;
@@ -272,10 +301,27 @@ export class DownloadEngine {
             media: media.media.id,
             role: media.media.role,
             quality: this.settings.quality,
+            ...(media.media.role !== "image" &&
+            this.settings.video_codec !== "auto"
+              ? { video_codec: this.settings.video_codec }
+              : {}),
             path: target,
           });
           const archived = await this.archiveEntry(archiveKey);
-          if (await this.verified(archived)) {
+          const verified = await this.verified(archived);
+          const upgrading =
+            verified &&
+            this.settings.quality === "best" &&
+            !!archived &&
+            (archived.selection
+              ? compareVariants(media.variant, {
+                  ...media.variant,
+                  ...archived.selection,
+                }) < 0
+              : archived.quality !== "original" &&
+                (media.variant.original ||
+                  (media.variant.height ?? 0) > Number(archived.quality)));
+          if (verified && !upgrading) {
             if (source) await this.saveArchive({ ...archived!, source });
             await record({
               note_id: ref.id,
@@ -286,11 +332,14 @@ export class DownloadEngine {
               bytes: archived!.bytes,
               sha256: archived!.sha256,
               quality: archived!.quality,
+              media_info:
+                archived!.media_info ?? (await inspectMedia(archived!.path)),
+              resolution: note.resolution,
               source,
             });
             return;
           }
-          if (await exists(target)) {
+          if (!upgrading && (await exists(target))) {
             if (this.settings.on_exists === "skip") {
               await record({
                 note_id: ref.id,
@@ -299,6 +348,8 @@ export class DownloadEngine {
                 path: target,
                 status: "skipped",
                 quality: media.quality,
+                media_info: await inspectMedia(target),
+                resolution: note.resolution,
                 source,
               });
               return;
@@ -333,11 +384,13 @@ export class DownloadEngine {
           }
           let downloaded;
           try {
-            downloaded = await this.transferFn(
-              media.candidates,
-              target,
-              this.transferSettings,
-            );
+            downloaded = await this.transferFn(media.candidates, target, {
+              ...this.transferSettings,
+              overwrite: !!upgrading || this.transferSettings.overwrite,
+              progress: this.onProgress
+                ? (event) => this.onProgress!({ ...event, path: target })
+                : undefined,
+            });
           } catch (error) {
             if (
               !(error instanceof AppError) ||
@@ -354,6 +407,7 @@ export class DownloadEngine {
               refreshed,
               this.settings.quality,
               this.settings.allow_quality_fallback,
+              this.settings.video_codec,
             );
             media.variant = variant;
             media.quality = variant.original
@@ -362,9 +416,19 @@ export class DownloadEngine {
             downloaded = await this.transferFn(
               [variant.url, ...variant.backup_urls],
               target,
-              this.transferSettings,
+              {
+                ...this.transferSettings,
+                overwrite: !!upgrading || this.transferSettings.overwrite,
+                progress: this.onProgress
+                  ? (event) => this.onProgress!({ ...event, path: target })
+                  : undefined,
+              },
             );
           }
+          const inspected = await inspectMedia(target);
+          const mediaInfo = inspected.container
+            ? inspected
+            : variantInfo(media.variant);
           const entry: Entry = {
             key: archiveKey,
             path: target,
@@ -375,6 +439,14 @@ export class DownloadEngine {
             role: media.media.role,
             quality: media.quality,
             completed_at: new Date().toISOString(),
+            media_info: mediaInfo,
+            selection: {
+              width: media.variant.width,
+              height: media.variant.height,
+              bitrate: media.variant.bitrate,
+              original: media.variant.original,
+              scene: media.variant.scene,
+            },
             ...(source ? { source } : {}),
           };
           await this.saveArchive(entry);
@@ -387,6 +459,9 @@ export class DownloadEngine {
             bytes: entry.bytes,
             sha256: entry.sha256,
             quality: media.quality,
+            media_info: mediaInfo,
+            resolution: note.resolution,
+            upgraded: !!upgrading,
             source,
           };
           await record(item);
@@ -397,6 +472,7 @@ export class DownloadEngine {
             error instanceof AppError
               ? error
               : new AppError("DOWNLOAD_FAILED", "下载或写盘失败。", 8);
+          this.firstFailure ??= e;
           await record({
             note_id: ref.id,
             media_id: media.media.id,
@@ -456,6 +532,7 @@ export class DownloadEngine {
         error instanceof AppError
           ? error
           : new AppError("DOWNLOAD_FAILED", "帖子下载失败。", 7);
+      this.firstFailure ??= e;
       await this.emit({
         note_id: ref.id,
         status: "failed",
@@ -489,6 +566,22 @@ export class DownloadEngine {
     await this.note(item.ref, source);
   }
   finish() {
+    if (
+      this.firstFailure &&
+      this.result.summary.notes === 1 &&
+      this.emitted === 1 &&
+      this.result.summary.failed === 1
+    ) {
+      const e = this.firstFailure;
+      throw new AppError(
+        e.code,
+        e.message,
+        e.exitCode,
+        { ...e.details, partial_result: this.result },
+        e.retryable,
+        e.actionRequired,
+      );
+    }
     if (this.result.summary.failed)
       throw new AppError(
         "PARTIAL_FAILURE",

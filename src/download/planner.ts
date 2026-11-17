@@ -21,14 +21,40 @@ export type DownloadPlan = {
   media: PlannedMedia[];
   warnings: string[];
 };
-export function selectVariant(media: Media, quality: string, fallback = false) {
-  const variants = [...media.variants].sort(
-    (a, b) =>
-      Number(b.original) - Number(a.original) ||
-      (b.height ?? 0) - (a.height ?? 0) ||
-      (b.bitrate ?? 0) - (a.bitrate ?? 0) ||
-      (b.width ?? 0) - (a.width ?? 0),
+export function compareVariants(a: Variant, b: Variant) {
+  const scene = (v: Variant) =>
+    v.scene === "detail" ? 2 : v.scene === "preview" ? 0 : 1;
+  return (
+    Number(b.original) - Number(a.original) ||
+    scene(b) - scene(a) ||
+    (b.width ?? 0) * (b.height ?? 0) - (a.width ?? 0) * (a.height ?? 0) ||
+    (b.height ?? 0) - (a.height ?? 0) ||
+    (b.bitrate ?? 0) - (a.bitrate ?? 0) ||
+    (b.width ?? 0) - (a.width ?? 0)
   );
+}
+export function selectVariant(
+  media: Media,
+  quality: string,
+  fallback = false,
+  codec = "auto",
+) {
+  const variants = media.variants
+    .filter(
+      (v) => media.role === "image" || codec === "auto" || v.codec === codec,
+    )
+    .sort(compareVariants);
+  if (!variants.length && media.variants.length)
+    throw new AppError(
+      "CODEC_UNAVAILABLE",
+      `媒体 ${media.id} 没有所需编码 ${codec}。`,
+      7,
+      {
+        available_codecs: [
+          ...new Set(media.variants.map((v) => v.codec).filter(Boolean)),
+        ],
+      },
+    );
   let selected: Variant | undefined;
   if (quality === "best") selected = variants[0];
   else if (quality === "original") selected = variants.find((x) => x.original);
@@ -39,6 +65,15 @@ export function selectVariant(media: Media, quality: string, fallback = false) {
       "QUALITY_UNAVAILABLE",
       `媒体 ${media.id} 没有所需清晰度 ${quality}。`,
       7,
+      {
+        requested_quality: quality,
+        available_heights: [
+          ...new Set(variants.map((v) => v.height).filter((v) => v !== null)),
+        ],
+        available_codecs: [
+          ...new Set(variants.map((v) => v.codec).filter(Boolean)),
+        ],
+      },
     );
   return selected;
 }
@@ -73,6 +108,7 @@ export async function planDownload(
       item,
       settings.quality,
       settings.allow_quality_fallback,
+      settings.video_codec,
     );
     const name = renderTemplate(
       settings.template,

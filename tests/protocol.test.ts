@@ -13,8 +13,10 @@ import {
   acceptSsk,
   crc32,
   makeA1,
+  shardingDirection,
 } from "../src/protocol/crypto.js";
-import { createDevice } from "../src/api/client.js";
+import type { Transport } from "../src/infrastructure/http.js";
+import { XhsClient, newSession, createDevice } from "../src/api/client.js";
 import type { Device } from "../src/domain/models.js";
 import type { Stage } from "../src/protocol/constants.js";
 
@@ -83,5 +85,34 @@ describe("local HTTP protocol", () => {
     expect(crc32("123456789")).toBe(0xcbf43926);
     expect(makeA1()).toHaveLength(52);
     expect(makeA1()).not.toBe(makeA1());
+  });
+  it("aligns feed routing with the locked reference vectors without adding it to unrelated endpoints", async () => {
+    expect(shardingDirection("1".repeat(24))).toBe(80);
+    expect(shardingDirection("synthetic-viewer")).toBe(62);
+    expect(shardingDirection("abc")).toBe(21);
+    expect(shardingDirection("")).toBe(0);
+    const session = newSession();
+    session.user = { id: "1".repeat(24) } as NonNullable<typeof session.user>;
+    const seen: Record<string, string>[] = [];
+    const transport = {
+      request: async (
+        _origin: string,
+        _path: string,
+        opts: { headers: Record<string, string> },
+      ) => {
+        seen.push(opts.headers);
+        return { status: 200, headers: new Headers(), text: "{}" };
+      },
+    } as unknown as Transport;
+    const client = new XhsClient(session, transport);
+    await client.request("/api/sns/web/v1/feed", {});
+    await client.request("/api/sns/web/v2/user/me");
+    session.user = null;
+    await client.request("/api/sns/web/v1/feed", {});
+    expect(seen.map((h) => h["xy-direction"])).toEqual([
+      "80",
+      undefined,
+      undefined,
+    ]);
   });
 });

@@ -33,6 +33,9 @@ export const variantSchema = z.object({
   width: z.number().nullable(),
   height: z.number().nullable(),
   codec: z.string().nullable(),
+  codec_raw: z.string().nullable().optional(),
+  duration_seconds: z.number().nullable().optional(),
+  scene: z.enum(["detail", "preview", "unknown"]).optional(),
   container: z.string().nullable(),
   bitrate: z.number().nullable(),
   size_bytes: z.number().nullable(),
@@ -92,6 +95,22 @@ export const noteSchema = z.object({
   fetched_at: z.string(),
   protocol_version: z.string(),
   completeness: z.literal("full"),
+  resolution: z
+    .object({
+      source: z.enum(["api", "html_fallback"]),
+      observations: z.array(
+        z.object({
+          source: z.enum(["api", "html_fallback"]),
+          variant_count: z.number(),
+          max_height: z.number().nullable(),
+        }),
+      ),
+      attempts: z.number(),
+      candidates_changed: z.boolean(),
+      best_effort: z.literal(true),
+      warnings: z.array(z.string()),
+    })
+    .optional(),
 });
 export type Note = z.infer<typeof noteSchema>;
 export type RemotePage = {
@@ -188,6 +207,23 @@ export const listResultSchema = z.object({
   filter_mode: z.enum(["local", "remote"]),
 });
 
+export const mediaInfoSchema = z.object({
+  source: z.enum(["file_header", "api"]),
+  container: z.string().nullable(),
+  width: z.number().nullable(),
+  height: z.number().nullable(),
+  codec: z.string().nullable(),
+  duration_seconds: z.number().nullable(),
+  frame_rate: z.number().nullable(),
+  audio: z.array(
+    z.object({
+      codec: z.string().nullable(),
+      sample_rate: z.number().nullable(),
+      channels: z.number().nullable(),
+    }),
+  ),
+});
+export type MediaInfo = z.infer<typeof mediaInfoSchema>;
 export const downloadItemSchema = z.object({
   note_id: z.string().nullable(),
   media_id: z.string().optional(),
@@ -198,6 +234,9 @@ export const downloadItemSchema = z.object({
   sha256: z.string().optional(),
   quality: z.string().optional(),
   candidates: z.array(z.string()).optional(),
+  media_info: mediaInfoSchema.optional(),
+  resolution: noteSchema.shape.resolution,
+  upgraded: z.boolean().optional(),
   error: z.object({ code: z.string(), message: z.string() }).optional(),
   source: z.object({ owner_id: z.string(), kind: z.string() }).optional(),
 });

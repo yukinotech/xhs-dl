@@ -63,6 +63,14 @@ export function validMedia(bytes: Buffer) {
     bytes.subarray(0, 4).equals(Buffer.from("1a45dfa3", "hex"))
   );
 }
+export type TransferProgress = {
+  phase: "connecting" | "downloading" | "retrying" | "verifying";
+  downloaded_bytes: number;
+  total_bytes: number | null;
+  transferred_bytes: number;
+  resumed_bytes: number;
+  attempt: number;
+};
 export type TransferOptions = {
   resume: boolean;
   overwrite: boolean;
@@ -72,7 +80,7 @@ export type TransferOptions = {
   signal?: AbortSignal;
   limiter?: RateLimiter;
   validateUrl?: (url: string) => URL;
-  progress?: (bytes: number) => void;
+  progress?: (event: TransferProgress) => void;
 };
 type PartMeta = {
   url: string;
@@ -89,6 +97,20 @@ export async function transfer(
     metadata = part + ".json";
   const client = new FetchClient(options.proxy);
   let last: unknown;
+  let wireBytes = 0,
+    attemptNumber = 0;
+  let state: TransferProgress = {
+    phase: "connecting",
+    downloaded_bytes: 0,
+    total_bytes: null,
+    transferred_bytes: 0,
+    resumed_bytes: 0,
+    attempt: 0,
+  };
+  const notify = (update: Partial<TransferProgress>) => {
+    state = { ...state, ...update, transferred_bytes: wireBytes };
+    options.progress?.({ ...state });
+  };
   const validate = options.validateUrl ?? mediaUrl;
   const candidate = async (
     raw: string,
@@ -113,6 +135,19 @@ export async function transfer(
     const validator =
       old?.etag && !old.etag.startsWith("W/") ? old.etag : old?.last_modified;
     if (!validator) offset = 0;
+    attemptNumber++;
+    notify({
+      phase: "connecting",
+      attempt: attemptNumber,
+      downloaded_bytes: offset,
+      resumed_bytes: offset,
+      total_bytes:
+        typeof old?.total === "number" &&
+        Number.isFinite(old.total) &&
+        old.total >= 0
+          ? old.total
+          : null,
+    });
     let url = validate(raw),
       response: Awaited<ReturnType<FetchClient["fetch"]>> | undefined;
     for (let hop = 0; hop < 5; hop++) {
@@ -201,6 +236,13 @@ export async function transfer(
     const expected = response.headers.has("content-length") ? length : null;
     const total =
       response.status === 206 ? Number(range!.match(/\/(\d+)$/)![1]) : expected;
+    notify({
+      phase: "downloading",
+      downloaded_bytes: offset,
+      resumed_bytes: offset,
+      total_bytes:
+        total !== null && Number.isFinite(total) && total >= 0 ? total : null,
+    });
     const meta: PartMeta = {
       url: url.toString(),
       etag,
@@ -227,7 +269,8 @@ export async function transfer(
             written += result.bytesWritten;
           }
           transferred += chunk.length;
-          options.progress?.(chunk.length);
+          wireBytes += chunk.length;
+          notify({ downloaded_bytes: offset + transferred });
         }
       await file.sync();
     } finally {
@@ -241,6 +284,7 @@ export async function transfer(
         {},
         true,
       );
+    notify({ phase: "verifying" });
     const handle = await open(part, "r");
     const head = Buffer.alloc(16);
     try {
@@ -290,6 +334,7 @@ export async function transfer(
         } catch (error) {
           checkSignal(options.signal);
           last = error;
+          notify({ phase: "retrying" });
           if (
             error instanceof AppError &&
             ["CANCELLED", "TIMEOUT", "OUTPUT_COLLISION"].includes(error.code)

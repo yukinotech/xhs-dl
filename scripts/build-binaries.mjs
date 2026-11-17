@@ -99,6 +99,7 @@ for (const name of targets) {
     "skills/xhs-dl/references/commands.md",
     "docs/architecture-plan.md",
     "docs/reference-research.md",
+    "docs/video-quality-investigation.md",
     "docs/roadmap.md",
     "docs/user-content-spec.md",
     "docs/xhs-dl.conf.example",

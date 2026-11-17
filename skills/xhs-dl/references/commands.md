@@ -18,7 +18,7 @@ Generated from the CLI registry. Regenerate with `pnpm docs:generate`; edit comm
 - `--proxy <url>`: HTTP(S) CONNECT 代理地址
 - `--retries <count>`: 下载/只读请求额外重试次数，默认 2
 - `--request-interval <ms>`: 内容 API 请求最小间隔毫秒，默认 1000
-- `--quiet`: 不输出等待进度
+- `--quiet`: 不输出等待和下载进度
 - `--verbose`: 显示脱敏诊断字段
 - `--no-color`: 关闭颜色（二维码始终使用无 ANSI 字符矩阵）
 - `-H, --help-all`: 输出所有已实现命令、参数、登录流程与错误约定
@@ -255,10 +255,13 @@ Generated from the CLI registry. Regenerate with `pnpm docs:generate`; edit comm
 - `--paths <path>`: 下载根目录
 - `-o, --output <template>`: 文件相对路径模板
 - `--timezone <zone>`: 模板日期IANA时区，默认UTC
-- `--quality <quality>`: best | original | 精确视频高度
+- `--quality <quality>`: best（默认最优）| original | 精确视频高度
+- `--video-codec <codec>`: auto（默认不限编码）| h264 | hevc | av1 | vvc；只选择，不转码
 - `--allow-quality-fallback`: 没有指定清晰度时允许降级
 - `--no-allow-quality-fallback`: 禁止质量降级
 - `--media <media>`: all | images | videos | live
+- `--progress`: 强制在 stderr 显示进度；非终端输出节流纯文本
+- `--no-progress`: 关闭下载进度显示
 - `--concurrency <n>`: 媒体并发，默认3，最大32
 - `--rate-limit <bytes-per-second>`: 聚合下载限速，0为不限
 - `--resume`: 启用经身份核对的Range续传

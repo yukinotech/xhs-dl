@@ -81,7 +81,7 @@ async function setup() {
   };
 }
 describe("download orchestration", () => {
-  it("deduplicates a best request by requested policy even if the platform later adds a higher variant", async () => {
+  it("upgrades a verified best download when a higher variant appears and skips the same quality", async () => {
     const s = await setup();
     const first = new DownloadEngine(
       s.service,
@@ -102,9 +102,28 @@ describe("download orchestration", () => {
       owner_id: "synthetic-owner",
       kind: "favorites",
     });
-    expect(second.finish().summary.skipped).toBe(1);
-    expect(second.result.items[0]!.quality).toBe("720");
-    expect(s.calls()).toBe(1);
+    expect(second.finish().summary.downloaded).toBe(1);
+    expect(second.result.items[0]!.quality).toBe("2160");
+    expect(second.result.items[0]!.upgraded).toBe(true);
+    const third = new DownloadEngine(
+      s.service,
+      undefined,
+      true,
+      s.fakeTransfer,
+    );
+    await third.note(s.ref);
+    expect(third.finish().summary.skipped).toBe(1);
+    s.setHeight(1080);
+    const lower = new DownloadEngine(
+      s.service,
+      undefined,
+      true,
+      s.fakeTransfer,
+    );
+    await lower.note(s.ref);
+    expect(lower.finish().items[0]!.quality).toBe("2160");
+    expect(lower.result.summary.skipped).toBe(1);
+    expect(s.calls()).toBe(2);
     const path = first.result.items[0]!.path!;
     expect(await sha256(path)).toBe(first.result.items[0]!.sha256);
   });
@@ -171,5 +190,38 @@ describe("download orchestration", () => {
     await second.note(s.ref);
     expect(second.finish().items[0]?.path).toContain("(1)");
     expect(await readFile(original, "utf8")).toBe("external");
+  });
+  it("reports an unavailable single quality directly and retains batch partial failures", async () => {
+    const s = await setup();
+    s.service.config.download.quality = "original";
+    const one = new DownloadEngine(s.service, undefined, true, s.fakeTransfer);
+    await one.note(s.ref);
+    try {
+      one.finish();
+      throw new Error("expected failure");
+    } catch (error) {
+      expect(error).toMatchObject({
+        code: "QUALITY_UNAVAILABLE",
+        exitCode: 7,
+        details: { partial_result: { summary: { failed: 1 } } },
+      });
+    }
+    const streamed = new DownloadEngine(
+      s.service,
+      undefined,
+      false,
+      s.fakeTransfer,
+    );
+    await streamed.note(s.ref);
+    expect(() => streamed.finish()).toThrow(/没有所需清晰度/);
+    const batch = new DownloadEngine(
+      s.service,
+      undefined,
+      true,
+      s.fakeTransfer,
+    );
+    await batch.note(s.ref);
+    await batch.note({ id: "2".repeat(24) });
+    expect(() => batch.finish()).toThrow("部分媒体下载失败");
   });
 });

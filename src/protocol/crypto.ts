@@ -79,3 +79,27 @@ export function acceptSsk(
     throw protocolError("登录密钥交换失败，平台协议可能已变更。");
   }
 }
+
+// Feed routing is a wire-protocol fact: MurmurHash3 x86/32(userId,151488)%100+1.
+export function shardingDirection(userId: string): number {
+  if (!userId) return 0;
+  const bytes = Buffer.from(userId);
+  const rotate = (value: number, bits: number) =>
+    (value << bits) | (value >>> (32 - bits));
+  let hash = 151488,
+    offset = 0;
+  for (; offset + 4 <= bytes.length; offset += 4) {
+    let word = Math.imul(bytes.readUInt32LE(offset), 0xcc9e2d51);
+    word = Math.imul(rotate(word, 15), 0x1b873593);
+    hash = Math.imul(rotate(hash ^ word, 13), 5) + 0xe6546b64;
+  }
+  let tail = 0;
+  for (let i = 0; offset + i < bytes.length; i++)
+    tail |= bytes[offset + i]! << (i * 8);
+  if (offset < bytes.length)
+    hash ^= Math.imul(rotate(Math.imul(tail, 0xcc9e2d51), 15), 0x1b873593);
+  hash ^= bytes.length;
+  hash = Math.imul(hash ^ (hash >>> 16), 0x85ebca6b);
+  hash = Math.imul(hash ^ (hash >>> 13), 0xc2b2ae35);
+  return (((hash ^ (hash >>> 16)) >>> 0) % 100) + 1;
+}

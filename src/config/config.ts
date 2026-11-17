@@ -26,6 +26,8 @@ export const downloadConfigSchema = z
       .string()
       .regex(/^(best|original|[1-9]\d*)$/)
       .default("best"),
+    progress: z.enum(["auto", "always", "never"]).default("auto"),
+    video_codec: z.enum(["auto", "h264", "hevc", "av1", "vvc"]).default("auto"),
     allow_quality_fallback: z.boolean().default(false),
     media: z.enum(["all", "images", "videos", "live"]).default("all"),
     concurrency: positive.int().max(32).default(3),
@@ -141,6 +143,8 @@ export const bindings: Record<
   OUTPUT: { path: "download.template", type: "string" },
   TIMEZONE: { path: "download.timezone", type: "string" },
   QUALITY: { path: "download.quality", type: "string" },
+  PROGRESS: { path: "download.progress", type: "string" },
+  VIDEO_CODEC: { path: "download.video_codec", type: "string" },
   ALLOW_QUALITY_FALLBACK: {
     path: "download.allow_quality_fallback",
     type: "boolean",

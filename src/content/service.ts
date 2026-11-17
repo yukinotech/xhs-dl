@@ -152,7 +152,12 @@ export class ContentService {
   }
   async note(input: string | Ref, token?: string, source?: string) {
     const ref = await this.resolve(input, "note", token, source);
-    return this.client((c) => noteDetail(c, ref));
+    return this.client((c) =>
+      noteDetail(c, ref, {
+        intervalMs: this.config.network.request_interval_ms,
+        signal: this.signal,
+      }),
+    );
   }
   private observationName(target: string, viewer: string | null) {
     return "access_" + hash({ target, viewer }) + ".json";

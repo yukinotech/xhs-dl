@@ -3,7 +3,12 @@ import { createServer, type Server, type RequestListener } from "node:http";
 import { mkdtemp, rm, readFile, writeFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { transfer, mediaUrl, RateLimiter } from "../src/download/transfer.js";
+import {
+  transfer,
+  mediaUrl,
+  RateLimiter,
+  type TransferProgress,
+} from "../src/download/transfer.js";
 const roots: string[] = [],
   servers: Server[] = [];
 const png = Buffer.from(
@@ -90,7 +95,25 @@ describe("media HTTP transfer", () => {
         total: png.length,
       }),
     );
-    await transfer([s.base + "/file"], s.path, s.options);
+    const events: TransferProgress[] = [];
+    await transfer([s.base + "/file"], s.path, {
+      ...s.options,
+      progress: (event) => events.push(event),
+    });
+    expect(events.find((event) => event.phase === "downloading")).toMatchObject(
+      {
+        downloaded_bytes: offset,
+        total_bytes: png.length,
+        transferred_bytes: 0,
+        resumed_bytes: offset,
+      },
+    );
+    expect(events.at(-1)).toMatchObject({
+      phase: "verifying",
+      downloaded_bytes: png.length,
+      total_bytes: png.length,
+      transferred_bytes: png.length - offset,
+    });
     expect(range).toBe("bytes=20-");
     expect(await readFile(s.path)).toEqual(png);
   });
@@ -120,7 +143,17 @@ describe("media HTTP transfer", () => {
         total: png.length,
       }),
     );
-    await transfer([s.base + "/file"], s.path, s.options);
+    const events: TransferProgress[] = [];
+    await transfer([s.base + "/file"], s.path, {
+      ...s.options,
+      progress: (event) => events.push(event),
+    });
+    expect(
+      events
+        .filter((event) => event.phase === "connecting")
+        .map((event) => event.resumed_bytes),
+    ).toEqual([20, 0]);
+    expect(events.at(-1)?.downloaded_bytes).toBe(png.length);
     expect(requests).toBe(2);
     expect(await readFile(s.path)).toEqual(png);
   });

@@ -326,9 +326,9 @@ xhs-dl download --input refs.jsonl --input-format jsonl --format jsonl --non-int
 
 字段包括 `note.id/title/type`、`author.id/name`、`published_at`、`downloaded_at`、`index`、`media.id/role`、`ext`；用户来源直接下载另支持 `source.owner_id`、`source.kind`。index 从 1 开始；downloaded_at 是该次计划生成时固定的时间，重试不重新生成。模板日期默认 UTC，可用 `--timezone Asia/Shanghai` 调整。未知字段在写盘前报错；已知但缺失字段使用明确 fallback（如 `{title|untitled}`，title 作为 note.title 的别名），否则返回 TEMPLATE_VALUE_MISSING。
 
-`--paths` 是下载根目录，允许绝对或相对路径；模板只能生成其内相对路径。变量值中的分隔符、控制字符、Windows 保留字符、尾随点/空格和超长名称规范化；模板中的固定 `/` 才表示层级。拒绝 `..`、绝对模板和经符号链接逃出根目录的写入。稳定 ID、序号和角色防止同名图集、Live Photo 相互覆盖；仍有碰撞时默认返回 OUTPUT_COLLISION，显式 `--on-exists skip|overwrite|error|rename` 控制处理。默认 error；已被下载归档验证的完整文件优先幂等跳过。
+`--paths` 是下载根目录，允许绝对或相对路径；模板只能生成其内相对路径。变量值中的分隔符、控制字符、Windows 保留字符、尾随点/空格和超长名称规范化；模板中的固定 `/` 才表示层级。拒绝 `..`、绝对模板和经符号链接逃出根目录的写入。稳定 ID、序号和角色防止同名图集、Live Photo 相互覆盖；仍有碰撞时默认返回 OUTPUT_COLLISION，显式 `--on-exists skip|overwrite|error|rename` 控制处理。默认 error；已被下载归档验证的完整文件在档位相同或较低时幂等跳过；best 发现更高档时安全升级，用户修改过的文件仍按冲突策略处理。
 
-关键参数：`--media all|images|videos|live`、`--quality best|original|<height>`、`--allow-quality-fallback`、`--concurrency`、`--rate-limit`、`--resume`、`--archive`、`--write-info-json`、`--write-description`、`--dry-run`。original 仅在来源确认有原片候选时成立，不把最高转码档位标记为原片；指定条件不满足默认报错，只有显式 fallback 才降级。rate-limit 表示聚合媒体传输字节/秒，API 请求间隔另用 `--request-interval`（毫秒）。默认媒体并发 3、API 串行、请求间隔至少 1000ms，均可配置，不保证固定速率能避免限流。
+关键参数：`--media all|images|videos|live`、`--quality best|original|<height>`（默认 best）、`--video-codec auto|h264|hevc|av1|vvc`、`--allow-quality-fallback`、`--concurrency`、`--rate-limit`、`--resume`、`--archive`、`--write-info-json`、`--write-description`、`--dry-run`。original 仅在来源确认有原片候选时成立，不把最高转码档位标记为原片；指定条件不满足默认报错，只有显式 fallback 才降级。rate-limit 表示聚合媒体传输字节/秒，API 请求间隔另用 `--request-interval`（毫秒）。默认媒体并发 3、API 串行、请求间隔至少 1000ms，均可配置，不保证固定速率能避免限流。
 
 下载可靠性：
 

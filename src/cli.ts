@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { DownloadProgressDisplay } from "./infrastructure/progress.js";
 import { DownloadEngine } from "./download/engine.js";
 import { inputRefs } from "./download/input.js";
 import { validateTemplate } from "./download/template.js";
@@ -121,7 +122,7 @@ const program = new Command()
     "内容 API 请求最小间隔毫秒，默认 1000",
     nonnegative,
   )
-  .option("--quiet", "不输出等待进度")
+  .option("--quiet", "不输出等待和下载进度")
   .option("--verbose", "显示脱敏诊断字段")
   .addOption(
     new Option(
@@ -357,6 +358,13 @@ async function context(cmd: Command) {
         "download.template": opts.output,
         "download.timezone": opts.timezone,
         "download.quality": opts.quality,
+        "download.progress":
+          opts.progress === undefined
+            ? undefined
+            : opts.progress
+              ? "always"
+              : "never",
+        "download.video_codec": opts.videoCodec,
         "download.allow_quality_fallback": opts.allowQualityFallback,
         "download.media": opts.media,
         "download.concurrency": opts.concurrency,
@@ -837,7 +845,11 @@ const download = refFlags(
   .option("--paths <path>", "下载根目录")
   .option("-o, --output <template>", "文件相对路径模板")
   .option("--timezone <zone>", "模板日期IANA时区，默认UTC")
-  .option("--quality <quality>", "best | original | 精确视频高度")
+  .option("--quality <quality>", "best（默认最优）| original | 精确视频高度")
+  .option(
+    "--video-codec <codec>",
+    "auto（默认不限编码）| h264 | hevc | av1 | vvc；只选择，不转码",
+  )
   .option("--allow-quality-fallback", "没有指定清晰度时允许降级")
   .addOption(
     new Option("--no-allow-quality-fallback", "禁止质量降级").default(
@@ -845,6 +857,8 @@ const download = refFlags(
     ),
   )
   .option("--media <media>", "all | images | videos | live")
+  .option("--progress", "强制在 stderr 显示进度；非终端输出节流纯文本")
+  .addOption(new Option("--no-progress", "关闭下载进度显示").default(undefined))
   .option("--concurrency <n>", "媒体并发，默认3，最大32", integer)
   .option(
     "--rate-limit <bytes-per-second>",
@@ -895,56 +909,72 @@ action(download, "download", async (cmd, urls: string[]) => {
       2,
     );
   validateTemplate(config!.download.template);
-  const engine = new DownloadEngine(
-    content,
-    async (item) => {
-      if (output === "jsonl") streamItem(item, cmd);
-      else if (output === "human" && !opts.quiet)
-        process.stderr.write(
-          item.status + ": " + (item.path ?? item.note_id ?? "input") + "\n",
-        );
-    },
-    output !== "jsonl",
+  const progress = new DownloadProgressDisplay(
+    process.stderr,
+    config!.download.progress,
+    !!opts.quiet,
   );
-  activeDownloadResult = engine.result;
-  if (opts.user) {
-    const target =
-      opts.user === "me"
-        ? "me"
-        : await content.resolve(
-            opts.user,
-            "user",
+  try {
+    const engine = new DownloadEngine(
+      content,
+      async (item) => {
+        progress.complete(item.path, item.status);
+        if (output === "jsonl") streamItem(item, cmd);
+        else if (
+          output === "human" &&
+          !opts.quiet &&
+          (!progress.enabled || item.status !== "downloaded")
+        )
+          progress.log(
+            item.status + ": " + (item.path ?? item.note_id ?? "input"),
+          );
+      },
+      output !== "jsonl",
+      undefined,
+      (event) => progress.update(event),
+    );
+    activeDownloadResult = engine.result;
+    if (opts.user) {
+      const target =
+        opts.user === "me"
+          ? "me"
+          : await content.resolve(
+              opts.user,
+              "user",
+              opts.xsecToken,
+              opts.xsecSource,
+            );
+      const result = await content.list(
+        target,
+        opts.source,
+        listOptions(opts),
+        (item) => engine.listItem(item),
+        false,
+      );
+      engine.result.page = result.page;
+    } else {
+      const values = opts.input
+        ? await inputRefs(opts.input, opts.inputFormat, activeSignal)
+        : urls;
+      for (const [index, value] of values.entries()) {
+        try {
+          const ref = await content.resolve(
+            value,
+            "note",
             opts.xsecToken,
             opts.xsecSource,
           );
-    const result = await content.list(
-      target,
-      opts.source,
-      listOptions(opts),
-      (item) => engine.listItem(item),
-      false,
-    );
-    engine.result.page = result.page;
-  } else {
-    const values = opts.input
-      ? await inputRefs(opts.input, opts.inputFormat, activeSignal)
-      : urls;
-    for (const [index, value] of values.entries()) {
-      try {
-        const ref = await content.resolve(
-          value,
-          "note",
-          opts.xsecToken,
-          opts.xsecSource,
-        );
-        await engine.note(ref);
-      } catch (error) {
-        if (activeSignal?.aborted) throw error;
-        await engine.invalidInput(error, index + 1);
+          await engine.note(ref);
+        } catch (error) {
+          if (activeSignal?.aborted) throw error;
+          await engine.invalidInput(error, index + 1);
+        }
       }
     }
+    return engine.finish();
+  } finally {
+    progress.close();
   }
-  return engine.finish();
 });
 const configCommand = program
   .command("config")
@@ -1163,10 +1193,8 @@ async function main() {
       action_required: app.actionRequired,
       details: {
         ...app.details,
-        ...(activeDownloadResult
-          ? app.details.partial_result
-            ? { download_result: activeDownloadResult }
-            : { partial_result: activeDownloadResult }
+        ...(activeDownloadResult && !app.details.partial_result
+          ? { partial_result: activeDownloadResult }
           : {}),
       } as Record<string, unknown>,
     };

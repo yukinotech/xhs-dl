@@ -11,6 +11,8 @@ import { z } from "zod";
 import { HttpTransport } from "../src/infrastructure/http.js";
 import { Store } from "../src/infrastructure/store.js";
 import { createHandshake } from "../src/protocol/crypto.js";
+import { inspectMedia } from "../src/download/media-info.js";
+import { DownloadProgressDisplay } from "../src/infrastructure/progress.js";
 import { transfer } from "../src/download/transfer.js";
 
 const png = Buffer.from(
@@ -85,15 +87,26 @@ try {
   const proxyProbe = await proxyClient.fetch("http://proxy-only.invalid/", {});
   assert.ok(["proxied", "{}"].includes(await proxyProbe.text()));
   assert.ok(proxied > 0, "Explicit proxy must receive requests");
+  const progressOutput: string[] = [];
+  const display = new DownloadProgressDisplay(
+    { isTTY: false, write: (text) => progressOutput.push(text) },
+    "always",
+  );
   const result = await transfer([base + "/media"], join(root, "media.png"), {
     resume: true,
     overwrite: false,
     retries: 0,
     requestTimeoutMs: 3000,
     proxy: proxyUrl,
+    progress: (event) => display.update({ ...event, path: "synthetic.png" }),
     validateUrl: (value) => new URL(value),
   });
+  display.complete("synthetic.png", "downloaded");
+  display.close();
+  assert.ok(progressOutput.join("").includes("[完成]"));
+  assert.ok(!progressOutput.join("").includes("\u001b"));
   assert.equal(result.bytes, png.length);
+  assert.equal((await inspectMedia(join(root, "media.png"))).width, 1);
   assert.deepEqual(await readFile(join(root, "media.png")), png);
   const store = new Store(root, "synthetic");
   await store.locked(async () => {

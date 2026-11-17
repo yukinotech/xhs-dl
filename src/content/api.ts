@@ -1,3 +1,5 @@
+import { delay } from "../infrastructure/timing.js";
+import type { Note } from "../domain/content.js";
 import { noteFromHtml } from "./ssr.js";
 import { randomUUID } from "node:crypto";
 import type { XhsClient } from "../api/client.js";
@@ -207,10 +209,14 @@ export async function searchPage(
     page,
   );
 }
-export async function noteDetail(client: XhsClient, ref: Ref) {
-  let data;
-  try {
-    data = contentData(
+export async function noteDetail(
+  client: XhsClient,
+  ref: Ref,
+  options: { intervalMs?: number; signal?: AbortSignal } = {},
+) {
+  const readApi = async () => {
+    if (client.session) client.session.last_content_request_at = Date.now();
+    const data = contentData(
       await client.request("/api/sns/web/v1/feed", {
         source_note_id: ref.id,
         image_formats: ["jpg", "webp", "avif"],
@@ -220,6 +226,32 @@ export async function noteDetail(client: XhsClient, ref: Ref) {
       }),
       "note.get",
     );
+    const item = arr(data.items)
+      .map(obj)
+      .find(
+        (x) =>
+          pick(
+            obj(pick(x, "note_card", "noteCard")),
+            "note_id",
+            "noteId",
+            "id",
+          ) === ref.id,
+      );
+    if (!item)
+      throw new AppError(
+        "CONTENT_UNAVAILABLE",
+        "平台未返回对应帖子的详情。",
+        7,
+      );
+    const note = normalizeNote(pick(item, "note_card", "noteCard"), ref);
+    if (!note.media.length) throw protocolError("帖子没有可识别的媒体字段。");
+    return note;
+  };
+  let note: Note;
+  let source: "api" | "html_fallback" = "api";
+  const warnings: string[] = [];
+  try {
+    note = await readApi();
   } catch (error) {
     if (!(error instanceof AppError) || error.exitCode !== 7) throw error;
     const html = await client.transport.request(
@@ -235,8 +267,12 @@ export async function noteDetail(client: XhsClient, ref: Ref) {
           : ""),
       { headers: { "user-agent": client.session.device.userAgent } },
     );
+    if (html.status !== 200)
+      throw new AppError("CONTENT_UNAVAILABLE", "静态详情页面不可访问。", 7, {
+        http_status: html.status,
+      });
     try {
-      return normalizeNote(noteFromHtml(html.text, ref.id), ref);
+      note = normalizeNote(noteFromHtml(html.text, ref.id), ref);
     } catch (fallback) {
       if (!ref.xsec_token)
         throw new AppError(
@@ -246,16 +282,105 @@ export async function noteDetail(client: XhsClient, ref: Ref) {
         );
       throw fallback;
     }
+    source = "html_fallback";
+    warnings.push("API_UNAVAILABLE_HTML_FALLBACK");
   }
-  const item = arr(data.items)
-    .map(obj)
-    .find((x) => {
-      const card = obj(pick(x, "note_card", "noteCard"));
-      return pick(card, "note_id", "noteId", "id") === ref.id;
-    });
-  if (!item)
-    throw new AppError("CONTENT_UNAVAILABLE", "平台未返回对应帖子的详情。", 7);
-  const note = normalizeNote(pick(item, "note_card", "noteCard"), ref);
-  if (!note.media.length) throw protocolError("帖子没有可识别的媒体字段。");
+  const observe = (n: Note) => {
+    const variants = n.media.flatMap((m) => m.variants);
+    const heights = variants.flatMap((v) =>
+      v.height === null ? [] : [v.height],
+    );
+    return {
+      source,
+      variant_count: variants.length,
+      max_height: heights.length ? Math.max(...heights) : null,
+    };
+  };
+  const signature = (n: Note) =>
+    JSON.stringify(
+      n.media
+        .flatMap((m) =>
+          m.variants.map((v) => [
+            m.id,
+            v.codec,
+            v.width,
+            v.height,
+            v.bitrate,
+            v.original,
+          ]),
+        )
+        .sort(),
+    );
+  const signatures = [signature(note)],
+    observations = [observe(note)];
+  let attempts = 1;
+  // Successful API responses can omit complete codec buckets. Sample a bounded
+  // three times for video and merge only variants belonging to this same note.
+  if (source === "api" && note.type === "video")
+    for (let i = 1; i < 3; i++) {
+      await delay(options.intervalMs ?? 1000, options.signal);
+      attempts++;
+      let next: Note;
+      try {
+        next = await readApi();
+      } catch (error) {
+        if (
+          !(error instanceof AppError) ||
+          ![6, 7].includes(error.exitCode) ||
+          options.signal?.aborted
+        )
+          throw error;
+        warnings.push("CANDIDATE_ENRICHMENT_INCOMPLETE");
+        break;
+      }
+      if (next.type !== note.type)
+        throw protocolError("多次详情响应的帖子类型不一致。");
+      signatures.push(signature(next));
+      observations.push(observe(next));
+      for (const media of next.media) {
+        const previous = note.media.find(
+          (m) => m.id === media.id && m.role === media.role,
+        );
+        if (!previous) {
+          note.media.push(media);
+          continue;
+        }
+        for (const variant of media.variants) {
+          const key = (v: typeof variant) =>
+            JSON.stringify([
+              v.codec_raw,
+              v.width,
+              v.height,
+              v.bitrate,
+              v.size_bytes,
+              v.original,
+            ]);
+          const existing = previous.variants.find(
+            (v) => key(v) === key(variant),
+          );
+          if (existing) {
+            const backups = [
+              existing.url,
+              ...existing.backup_urls,
+              ...variant.backup_urls,
+            ].filter((url) => url !== variant.url);
+            Object.assign(existing, variant, {
+              backup_urls: [...new Set(backups)],
+            });
+          } else previous.variants.push(variant);
+        }
+      }
+      note.fetched_at = next.fetched_at;
+    }
+  const changed = new Set(signatures).size > 1;
+  if (changed) warnings.push("API_CANDIDATES_VARIED");
+  note.resolution = {
+    source,
+    observations,
+    attempts,
+    candidates_changed: changed,
+    best_effort: true,
+    warnings,
+  };
   return note;
 }

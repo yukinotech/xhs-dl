@@ -114,6 +114,19 @@ describe("CLI process contract", () => {
     expect(help.stdout).toContain("auth verify");
     expect(help.stdout).toContain("stdout");
   });
+  it("keeps progress on stderr and lets quiet/no-progress override forced output", async () => {
+    const dir = await root();
+    const forced = cli(dir, ["download", "invalid-url", "--progress"]);
+    expect(JSON.parse(forced.stdout).ok).toBe(false);
+    expect(forced.stderr).toContain("准备下载");
+    expect(forced.stderr).not.toContain("\r");
+    expect(forced.stderr).not.toContain("\x1b");
+    for (const flags of [["--progress", "--quiet"], ["--no-progress"]]) {
+      const result = cli(dir, ["download", "invalid-url", ...flags]);
+      expect(JSON.parse(result.stdout).ok).toBe(false);
+      expect(result.stderr).toBe("");
+    }
+  });
   it("renders a compact quiet zone without ANSI and supports both terminal themes", () => {
     for (const theme of ["light", "dark"]) {
       const qr = terminalQr("https://example.invalid/synthetic", theme);

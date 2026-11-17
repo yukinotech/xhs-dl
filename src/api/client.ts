@@ -3,6 +3,7 @@ import type { Device, Session, User } from "../domain/models.js";
 import { AppError, protocolError, requireValue } from "../domain/errors.js";
 import {
   makeA1,
+  shardingDirection,
   digest,
   createHandshake,
   acceptSsk,
@@ -95,6 +96,11 @@ export class XhsClient {
       headers: {
         ...this.headers(),
         ...sign(this.session.device, path, encoded, stage),
+        ...(["/api/sns/web/v1/feed", "/api/sns/web/v1/homefeed"].includes(
+          path.split("?")[0]!,
+        ) && this.session.user?.id
+          ? { "xy-direction": String(shardingDirection(this.session.user.id)) }
+          : {}),
         ...(body !== undefined
           ? { "content-type": "application/json;charset=UTF-8" }
           : {}),

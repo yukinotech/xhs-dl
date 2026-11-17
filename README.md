@@ -122,13 +122,30 @@ node dist/cli.js download '<帖子链接>' --dry-run --format json
 
 模板生成根目录内相对路径；自动创建层级目录，清理变量中的不合法文件名字符，拒绝路径穿越、绝对模板和输出目录内的符号链接。同名默认报错，可显式 `--on-exists skip|overwrite|error|rename`。
 
-- `--quality best|original|<height>`：best 取当前最高档，original 只接受明确原片候选，数字要求精确高度；仅显式 `--allow-quality-fallback` 才降级。
+- `--quality best|original|<height>`：图片和视频默认 best，按明确原片、详情场景、像素数及码率选择当前可用最优候选；original 只接受明确原片候选，数字要求精确高度。仅显式 `--allow-quality-fallback` 才降级。
+- `--video-codec auto|h264|hevc|av1|vvc`：默认 auto 不限编码、优先画质；显式指定则只在对应编码中选最优候选，不做转码，无对应候选返回 CODEC_UNAVAILABLE。
 - `--media all|images|videos|live`：live 成对下载实况图片和伴随视频。
 - `--concurrency` 默认 3；`--rate-limit` 为所有媒体共享的字节/秒，0 不限；`--request-interval` 为 API 请求间隔毫秒，默认 1000。
 - `.part` 与验证器用于 Range 续传；ETag/Last-Modified 不符或服务器忽略 Range 时重下。保留备用 CDN，过期地址有限刷新一次详情。
-- 归档按请求质量策略匹配，再核对文件大小与 SHA-256。`best` 重跑保持已有有效文件，不自动升级；显式指定另一高度并选择合适覆盖策略可重新下载。
+- 归档按请求质量和编码策略匹配，核对大小与 SHA-256。`best` 重跑发现更高档时升级已验证且由程序管理的文件（即使 on-exists=error）；相同或较低档跳过。用户改过的文件、没有有效归档的文件仍按冲突策略处理。
 - `--write-info-json` 输出移除访问 token/CDN 查询签名的元数据；`--write-description` 保存正文。取消喜欢/收藏不会删除本地媒体。
 - `--dry-run` 返回计划路径、质量和候选，不创建下载目录或归档；可进行网络解析与会话/分页状态更新。
+
+视频详情最多进行三次 API 采样，遵循请求间隔，并合并已经观察到的编码/清晰度；图片详情保持单次请求。`resolution` 报告 api/html_fallback 来源、每次候选数与最高高度、是否波动以及警告。平台可能返回部分候选，best 表示有限采样中实际可获得的最优结果，不保证平台隐藏或未返回的原片。原因与参考项目对照见[视频画质调查](docs/video-quality-investigation.md)。
+
+下载结果的 `media_info` 报告尺寸、编码、容器、时长、帧率和音轨；`source=file_header` 表示从本地文件头读取，`source=api` 表示规划阶段的平台元数据。无需 ffmpeg/ffprobe；文件头读取不等同于全片解码，未知字段保留 null。`codec_raw` 保留平台编码标签，EF4/EF5 分别归一化为 h264/hevc。
+
+单帖子、单媒体完全失败时直接返回原始错误和退出码（例如 QUALITY_UNAVAILABLE/7）；批量或部分失败继续使用 PARTIAL_FAILURE/9。错误详情只保留一份 partial_result。
+
+终端下载默认在 stderr 显示进度条，包含百分比、已下载/总大小、最近约 5 秒的平均速度和 ETA；多文件并发时合并显示。续传的已有字节计入完成比例，不计入本次速度；重试或从头下载时进度按实际文件状态重置。接收完字节后显示“校验中”，完成校验及归档后才显示“完成”。未知总大小时保留已下载大小，百分比和 ETA 显示未知。
+
+```sh
+xhs-dl download '<帖子链接>'                         # stderr 为终端时自动显示
+xhs-dl download '<帖子链接>' --progress --format json > result.json
+xhs-dl download '<帖子链接>' --no-progress           # 关闭进度
+```
+
+JSON/JSONL 的 stdout 结果结构保持不变，进度只写 stderr。非终端默认不显示；`--progress` 强制显示时每约两秒输出一条纯文本状态，不使用 ANSI 控制字符。`--quiet` 同时关闭等待日志和进度，优先于 `--progress`。配置项为 `[download].progress = "auto" | "always" | "never"`，环境变量为 `XHS_DL_PROGRESS`；命令行 `--progress` / `--no-progress` 覆盖配置。
 
 ## Agent、配置与诊断
 

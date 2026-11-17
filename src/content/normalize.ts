@@ -45,6 +45,23 @@ export function counter(x: unknown) {
     approximate: !!text && !/^\d+$/.test(text),
   };
 }
+export function standardCodec(value: unknown): string | null {
+  const raw = str(value);
+  if (!raw) return null;
+  return (
+    (
+      {
+        EF4: "h264",
+        EF5: "hevc",
+        h265: "hevc",
+        h266: "vvc",
+        avc1: "h264",
+        hvc1: "hevc",
+        hev1: "hevc",
+      } as Record<string, string>
+    )[raw] ?? raw
+  );
+}
 function variant(raw: unknown, now: string, original = false): Variant | null {
   const x = obj(raw),
     address = url(
@@ -58,7 +75,14 @@ function variant(raw: unknown, now: string, original = false): Variant | null {
       .filter((x): x is string => !!x),
     width: number(x.width),
     height: number(x.height),
-    codec: str(pick(x, "video_codec", "videoCodec", "codec")),
+    codec: standardCodec(
+      pick(x, "video_codec", "videoCodec", "codec", "codec_bucket"),
+    ),
+    codec_raw: str(
+      pick(x, "video_codec", "videoCodec", "codec", "codec_bucket"),
+    ),
+    duration_seconds: number(x.duration_seconds),
+    scene: x.scene === "detail" || x.scene === "preview" ? x.scene : "unknown",
     container:
       str(pick(x, "format", "container")) ??
       (address.includes("/stream/") ? "mp4" : null),
@@ -71,8 +95,10 @@ function variant(raw: unknown, now: string, original = false): Variant | null {
 }
 function streams(raw: unknown, now: string) {
   const stream = obj(raw);
-  return Object.values(stream)
-    .flatMap(arr)
+  return Object.entries(stream)
+    .flatMap(([bucket, values]) =>
+      arr(values).map((value) => ({ ...obj(value), codec_bucket: bucket })),
+    )
     .map((x) => variant(x, now))
     .filter((x): x is Variant => !!x);
 }
@@ -208,7 +234,18 @@ export function normalizeNote(
           const item = obj(raw);
           // Parent dimensions describe the source upload, not the CDN rendition.
           return variant(
-            { ...image, ...item, width: item.width, height: item.height },
+            {
+              ...image,
+              ...item,
+              width: item.width,
+              height: item.height,
+              scene:
+                pick(item, "image_scene", "imageScene") === "WB_DFT"
+                  ? "detail"
+                  : pick(item, "image_scene", "imageScene") === "WB_PRV"
+                    ? "preview"
+                    : "unknown",
+            },
             now,
           );
         })
@@ -253,7 +290,10 @@ export function normalizeNote(
       if (original) options.push(original);
     }
     media.push({
-      id: str(pick(video, "video_id", "videoId")) ?? "video",
+      id:
+        str(pick(video, "video_id", "videoId")) ??
+        str(pick(obj(video.media), "video_id", "videoId")) ??
+        "video",
       index: 1,
       role: "video",
       group_id: null,
