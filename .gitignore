@@ -1,0 +1,56 @@
+# Local, read-only upstream reference clones (never vendor into this repository).
+/references/
+
+# Local credentials and browser sessions.
+.env
+.env.*
+!.env.example
+cookies.json
+cookies/
+browser_data/
+node_modules/
+dist/
+coverage/
+.xhs-dl/
+*.tgz
+.DS_Store
+
+# Local output and user configuration.
+/downloads/
+/state/
+xhs-dl.conf
+xhs-dl.toml
+*.part
+*.part.json
+
+# Credentials or private state accidentally placed inside the checkout.
+session.json
+challenge.json
+credentials.json
+auth-state.json
+storage-state.json
+storageState.json
+cookies*.json
+cookies*.txt
+.secrets/
+*.pem
+*.key
+
+# Logs, editor state and generated package-check output.
+*.log
+.vscode/
+.idea/
+/package-check/
+
+# Downloaded media; intentional documentation assets need explicit exceptions.
+*.jpg
+*.jpeg
+*.png
+*.webp
+*.avif
+*.heic
+*.gif
+*.mp4
+*.mov
+*.webm
+*.m4v

@@ -1,0 +1,68 @@
+{
+  "description": "Offline synthetic wire-protocol vectors calculated against the locked reference snapshot; no account data.",
+  "cases": [
+    {
+      "device": {
+        "a1": "0000000000000000000000000000000000000000000000000000",
+        "webId": "00000000000000000000000000000000",
+        "loadts": 1700000000000,
+        "sequence": 7,
+        "dsl": "1700000000000",
+        "dsUpdatedAt": 1700000000000,
+        "deviceTag": "a3",
+        "webBuild": "6.47.2",
+        "userAgent": "synthetic",
+        "b1": "",
+        "activated": false
+      },
+      "path": "/synthetic/api",
+      "body": "{\"text\":\"合成测试\"}",
+      "stage": "security",
+      "now": 1700000000123,
+      "version": 287454020,
+      "expected": "mns0201_5pB9Apukndds7xq2Kvgk61LsRO/L5CeTdKGdoltQXx7OQi4jr4vakaa6fn2jjijjqHCHOsTI9E6Fb7TVHZb/Jp3L97CSgvrp+rO6jhttlo9hdj5hCcQIF5kc4LF4eHh2Af7lWnsxRj3Fm1KscZHwCKBSuwVgv2BZ6McOhsJFhjCnwS7JABc2lAj72muvoH0yguYrt9=="
+    },
+    {
+      "device": {
+        "a1": "0000000000000000000000000000000000000000000000000000",
+        "webId": "00000000000000000000000000000000",
+        "loadts": 1700000000000,
+        "sequence": 7,
+        "dsl": "1700000000000",
+        "dsUpdatedAt": 1700000000000,
+        "deviceTag": "a3",
+        "webBuild": "6.47.2",
+        "userAgent": "synthetic",
+        "b1": "",
+        "activated": false
+      },
+      "path": "/synthetic/api",
+      "body": "{\"text\":\"合成测试\"}",
+      "stage": "activate",
+      "now": 1700000000123,
+      "version": 287454020,
+      "expected": "mns0101_W9Qe4M/leXBf+ZLnYFWl6k2wXCzjNhQDRFQukecPhOjiHlDhT5+tf911+zSWJ71L2RKcGKpvELfpJR64eJXbiYmCDzORf33L5CBopgcmZyHo8DyklQHl7ax1J7t5iymzwwta8GunnCf/GWkZcHMvxyPhbhwxdvZONYNXjm64b/0H9xIGfaiG7QEm0kbylwO7oOkYo"
+    },
+    {
+      "device": {
+        "a1": "0000000000000000000000000000000000000000000000000000",
+        "webId": "00000000000000000000000000000000",
+        "loadts": 1700000000000,
+        "sequence": 7,
+        "dsl": "1700000000000",
+        "dsUpdatedAt": 1700000000000,
+        "deviceTag": "a3",
+        "webBuild": "6.47.2",
+        "userAgent": "synthetic",
+        "b1": "",
+        "activated": false
+      },
+      "path": "/synthetic/api",
+      "body": "{\"text\":\"合成测试\"}",
+      "stage": "qrCreate",
+      "now": 1700000000123,
+      "version": 287454020,
+      "expected": "mns0301_gRaKqqtFfv/Om6hfJt0idI4C4giCR85V07jxYGqI2jnG7I4dlNxNwVKupXDQy3CeuJzimVTH1b23HQ6V4J5m2RtTgH6Gw+PmLZrvTjzxzbZEVVbdTwDV0JHKXSDYLEWn1TMCnpsRzRJPUaT3lDeKSndVZlckE0JRIk0OHNRRTMr/wJORbAdFlciuD1GqcgrW"
+    }
+  ]
+}

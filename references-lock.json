@@ -1,0 +1,101 @@
+{
+  "checked_on": "2026-11-17",
+  "clone_depth": 1,
+  "repositories": [
+    {
+      "repo": "JoeanAmier/XHS-Downloader",
+      "directory": "XHS-Downloader",
+      "sha": "dfad51b3d1aac55866802007544f9390ad21553f",
+      "status": "cloned",
+      "url": "https://github.com/JoeanAmier/XHS-Downloader",
+      "branch": "master",
+      "commit_date": "2026-11-06T18:52:21+08:00",
+      "read_only": true,
+      "license_observation": "GPL-3.0 (LICENSE)"
+    },
+    {
+      "repo": "Andy-SoulShell/xhs-downloader",
+      "directory": "xhs-downloader-api",
+      "sha": "cc2bb34036acb12f5a722c95af7bad53ec696d03",
+      "status": "cloned",
+      "url": "https://github.com/Andy-SoulShell/xhs-downloader",
+      "branch": "main",
+      "commit_date": "2026-07-28T00:02:50-03:00",
+      "read_only": true,
+      "license_observation": "MIT (LICENSE)"
+    },
+    {
+      "repo": "ReaJason/xhs",
+      "directory": "xhs",
+      "sha": "f4b62d9f8e4078e631fc6e4ec8e430bc711ee9f0",
+      "status": "cloned",
+      "url": "https://github.com/ReaJason/xhs",
+      "branch": "master",
+      "commit_date": "2025-07-01T16:14:59+08:00",
+      "read_only": true,
+      "license_observation": "MIT (LICENSE)"
+    },
+    {
+      "repo": "NanmiCoder/MediaCrawler",
+      "directory": "MediaCrawler",
+      "sha": "4d629b52eddef9c53b5e9a52b76ec4a64383b494",
+      "status": "cloned",
+      "url": "https://github.com/NanmiCoder/MediaCrawler",
+      "branch": "main",
+      "commit_date": "2026-11-14T22:20:41-08:00",
+      "read_only": true,
+      "license_observation": "NON-COMMERCIAL LEARNING LICENSE 1.1 (LICENSE)"
+    },
+    {
+      "repo": "xpzouying/xiaohongshu-mcp",
+      "directory": "xiaohongshu-mcp",
+      "sha": "bb6fa2e208719ee634fec37881be29d3aa4699b3",
+      "status": "cloned",
+      "url": "https://github.com/xpzouying/xiaohongshu-mcp",
+      "branch": "main",
+      "commit_date": "2026-11-11T01:43:13+08:00",
+      "read_only": true,
+      "license_observation": "Apache-2.0 (LICENSE)"
+    },
+    {
+      "repo": "cv-cat/Spider_XHS",
+      "directory": "Spider_XHS",
+      "sha": "23dab803a0465e35e01cf87137353a900b47e93d",
+      "status": "cloned",
+      "url": "https://github.com/cv-cat/Spider_XHS",
+      "branch": "master",
+      "commit_date": "2026-10-22T22:38:11+08:00",
+      "read_only": true,
+      "license_observation": "No root LICENSE found; README prohibits commercial use"
+    },
+    {
+      "repo": "tamnd/xiaohongshu-cli",
+      "directory": "xiaohongshu-cli",
+      "sha": "b60f9a384ed32d002aaacbbff95fedb2bdc96682",
+      "status": "cloned",
+      "url": "https://github.com/tamnd/xiaohongshu-cli",
+      "branch": "main",
+      "commit_date": "2026-08-19T09:49:49+07:00",
+      "read_only": true,
+      "license_observation": "Apache-2.0 (LICENSE)"
+    },
+    {
+      "repo": "SamirDalem/Xiaohongshu-Batch-Downloader-Playwright-Python-Docker-Flask-API",
+      "directory": "xhs-batch-downloader",
+      "sha": "f1b1185a32defc209927d2d5de1128e92529fba8",
+      "status": "cloned",
+      "url": "https://github.com/SamirDalem/Xiaohongshu-Batch-Downloader-Playwright-Python-Docker-Flask-API",
+      "branch": "main",
+      "commit_date": "2025-11-15T17:18:16+01:00",
+      "read_only": true,
+      "license_observation": "MIT (LICENSE)"
+    }
+  ],
+  "excluded_candidates": [
+    {
+      "repo": "Johnserf-Seed/f2",
+      "error": "HTTPS clone failed with a TLS connection error; candidate excluded from the local reference snapshot."
+    }
+  ],
+  "verification": "Static source review only; no Xiaohongshu login or live media download performed."
+}
