@@ -29,7 +29,10 @@
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "lint": "eslint src tests",
     "docs:generate": "node scripts/command-reference.mjs",
-    "docs:check": "node scripts/command-reference.mjs --check"
+    "docs:check": "node scripts/command-reference.mjs --check",
+    "build:binary": "node scripts/build-binaries.mjs",
+    "build:binary:all": "node scripts/build-binaries.mjs all",
+    "test:binary": "node scripts/smoke-binary.mjs"
   },
   "dependencies": {
     "@inquirer/prompts": "^8.8.0",

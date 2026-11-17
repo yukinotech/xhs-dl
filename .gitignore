@@ -54,3 +54,6 @@ cookies*.txt
 *.mov
 *.webm
 *.m4v
+
+# Standalone executable distributions (contain bundled runtimes).
+/binaries/

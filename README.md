@@ -15,6 +15,49 @@ node dist/cli.js -H
 
 开发可用 `pnpm dev <命令>`。安装打包产物后可直接调用 `xhs-dl`；源码仓库使用 `node dist/cli.js`。
 
+## 独立可执行文件（Bun）
+
+独立产物包含 Bun 运行时与依赖，使用者不需要安装 Node.js、PNPM 或 Bun。Bun 仅用于构建，开发和依赖管理继续使用 Node.js / PNPM。构建机要求 Bun 1.4.4+（CI 固定 1.4.4）。
+
+```sh
+pnpm install --frozen-lockfile
+pnpm build:binary                         # 当前系统和 CPU
+pnpm test:binary                          # 当前平台独立运行测试
+pnpm build:binary darwin-arm64 darwin-x64  # Apple Silicon / Intel macOS
+pnpm build:binary windows-x64             # Windows exe
+pnpm build:binary linux-x64 linux-arm64    # Linux glibc
+pnpm build:binary:all                     # 全部八种目标
+```
+
+产物在 `binaries/<目标>/`，包含 `xhs-dl`（Windows 为 `xhs-dl.exe`）、`SHA256SUMS`、README、第三方许可声明、docs 和 Agent Skill。可执行文件可单独复制到其它目录；Skill 需要使用时另外保留。构建目录已加入 `.gitignore`，不会提交大文件或本地凭证。交叉编译首次可能需要联网下载对应的 Bun 运行时。
+
+| 目标 | 系统 / CPU |
+| --- | --- |
+| `darwin-arm64` / `darwin-x64` | macOS Apple Silicon / Intel |
+| `windows-x64` / `windows-arm64` | Windows x64 / ARM64 |
+| `linux-x64` / `linux-arm64` | Linux glibc x64 / ARM64 |
+| `linux-x64-musl` / `linux-arm64-musl` | Alpine 等 musl Linux x64 / ARM64 |
+
+macOS / Linux：
+
+```sh
+./binaries/darwin-arm64/xhs-dl -H
+./binaries/darwin-arm64/xhs-dl auth login --method sms
+# Linux 使用对应目录；加入 PATH 后直接输入 xhs-dl
+```
+
+Windows PowerShell：
+
+```powershell
+.\binaries\windows-x64\xhs-dl.exe -H
+.\binaries\windows-x64\xhs-dl.exe auth login --method sms
+.\binaries\windows-x64\xhs-dl.exe download '<帖子链接>' --paths 'D:\小红书'
+```
+
+下文的 `node dist/cli.js` 均可替换为可执行文件路径。配置、登录态、参数、退出码与 Agent 输出协议相同；`doctor` / `version` 通过 `runtime` 和 `bun` 字段报告实际运行时。
+
+GitHub Actions 的 **Standalone binaries** 工作流构建八种目标并上传产物，在 macOS ARM64 / Intel、Windows x64、Linux x64 上直接执行隔离测试和 HTTP/下载依赖测试；其它目标为交叉编译检查。Actions 的 ZIP 下载解压后，Unix 系统可能需要 `chmod +x xhs-dl`。当前本机已验证 macOS ARM64 运行，并完成 macOS Intel 交叉编译；其它平台运行验收以 CI 结果为准。产物尚未进行发布者签名或 Apple 公证，系统可能要求确认来源。
+
 ## 登录与身份
 
 ```sh

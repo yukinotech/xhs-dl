@@ -1,0 +1,39 @@
+name: Standalone binaries
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-latest, target: darwin-arm64, smoke: true }
+          - { os: windows-latest, target: windows-x64, smoke: true }
+          - { os: ubuntu-latest, target: linux-x64, smoke: true }
+          - { os: macos-15-intel, target: darwin-x64, smoke: true }
+          - { os: ubuntu-latest, target: windows-arm64, smoke: false }
+          - { os: ubuntu-latest, target: linux-arm64, smoke: false }
+          - { os: ubuntu-latest, target: linux-x64-musl, smoke: false }
+          - { os: ubuntu-latest, target: linux-arm64-musl, smoke: false }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: npm install --global pnpm@12.21.0
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:binary ${{ matrix.target }}
+      - if: matrix.smoke
+        run: pnpm test:binary ${{ matrix.target }}
+      - if: matrix.smoke
+        run: bun tests/bun-runtime-smoke.ts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: xhs-dl-${{ matrix.target }}
+          path: binaries/${{ matrix.target }}/
+          if-no-files-found: error

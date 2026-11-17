@@ -26,3 +26,9 @@ server-issued executable scripts are distributed or executed.
 Third-party npm dependency licenses are provided by their respective packages.
 This notice records research provenance; it does not relicense upstream work or
 assert that the private platform protocol is stable.
+
+Standalone builds bundle the Bun runtime and production npm dependencies.
+`docs/BUN-LICENSE.txt` preserves Bun 1.4.4's upstream license notice from
+https://github.com/oven-sh/bun/blob/bun-v1.4.4/LICENSE.md, including linked-library
+notices. `DEPENDENCY-LICENSES.txt` in each binary distribution contains license
+texts collected from the installed production dependencies, without local paths.

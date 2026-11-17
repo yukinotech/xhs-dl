@@ -1,7 +1,10 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
-const tsxLoader = createRequire(import.meta.url).resolve("tsx");
+import { pathToFileURL } from "node:url";
+const tsxLoader = pathToFileURL(
+  createRequire(import.meta.url).resolve("tsx"),
+).href;
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";

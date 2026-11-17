@@ -1087,6 +1087,8 @@ action(
     const status = await service.status(!!opts.check);
     return {
       node: process.version,
+      runtime: process.versions.bun ? "bun" : "node",
+      bun: process.versions.bun ?? null,
       platform: process.platform,
       architecture: process.arch,
       browser_required: false,
@@ -1108,6 +1110,8 @@ action(
       version,
       protocol_version: "pc-http-2026-11",
       node: process.version,
+      runtime: process.versions.bun ? "bun" : "node",
+      bun: process.versions.bun ?? null,
     };
   },
 );
