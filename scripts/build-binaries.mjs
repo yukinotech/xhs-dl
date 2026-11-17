@@ -3,7 +3,11 @@ import { mkdir, readFile, writeFile, cp, readdir } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
-import { binaryTargets, nativeTarget } from "./binary-targets.mjs";
+import {
+  binaryTargets,
+  nativeTarget,
+  distributionFiles,
+} from "./binary-targets.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const args = process.argv.slice(2);
@@ -92,19 +96,7 @@ for (const name of targets) {
       `Bun build failed for ${name}: ${result.error?.message ?? result.status}`,
     );
   // Explicit allowlist: never package local state, configs, downloads or reference clones.
-  for (const asset of [
-    "README.md",
-    "THIRD_PARTY_NOTICES.md",
-    "skills/xhs-dl/SKILL.md",
-    "skills/xhs-dl/references/commands.md",
-    "docs/architecture-plan.md",
-    "docs/reference-research.md",
-    "docs/video-quality-investigation.md",
-    "docs/roadmap.md",
-    "docs/user-content-spec.md",
-    "docs/xhs-dl.conf.example",
-    "docs/BUN-LICENSE.txt",
-  ]) {
+  for (const asset of distributionFiles) {
     await mkdir(join(directory, asset, ".."), { recursive: true });
     await cp(join(root, asset), join(directory, asset));
   }

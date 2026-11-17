@@ -2,6 +2,12 @@
 
 Node.js / TypeScript / PNPM 实现的纯 HTTP 小红书 CLI，面向终端、SSH 和 Agent。支持短信/扫码登录、帖子详情、搜索、本人/指定用户发布/喜欢/收藏列表，以及图集、视频、Live Photo 下载。
 
+## 下载发行版
+
+在 [GitHub Releases](https://github.com/yukinotech/xhs-dl/releases/latest) 下载对应系统和 CPU 的压缩包，解压即可运行，无需 Node.js、PNPM 或 Bun。Windows 选择 ZIP 后运行 `xhs-dl.exe -H`；macOS / Linux 选择 tar.gz 后运行 `./xhs-dl -H`。外层 `SHA256SUMS` 校验压缩包，包内校验文件用于核对可执行文件。
+
+维护者发版方式见 [Release 流程](docs/releases.md)：推送与程序版本一致的 v* 标签，由 GitHub 在线校验、构建并发布八个平台附件。
+
 ## 安装和入口
 
 要求 Node.js 22.22.2+（22.x）、24.15+（24.x）或 26+，PNPM 12.21.0。

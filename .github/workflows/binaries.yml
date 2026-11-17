@@ -1,5 +1,14 @@
 name: Standalone binaries
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      release:
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -19,6 +28,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -32,7 +43,16 @@ jobs:
         run: pnpm test:binary ${{ matrix.target }}
       - if: matrix.smoke
         run: bun tests/bun-runtime-smoke.ts
-      - uses: actions/upload-artifact@v4
+      - if: inputs.release
+        run: node scripts/release.mjs package ${{ matrix.target }}
+      - if: inputs.release
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.target }}
+          path: release-assets/*
+          if-no-files-found: error
+      - if: ${{ !inputs.release }}
+        uses: actions/upload-artifact@v4
         with:
           name: xhs-dl-${{ matrix.target }}
           path: binaries/${{ matrix.target }}/

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import packageMetadata from "../package.json" with { type: "json" };
 import { DownloadProgressDisplay } from "./infrastructure/progress.js";
 import { DownloadEngine } from "./download/engine.js";
 import { inputRefs } from "./download/input.js";
@@ -43,7 +44,7 @@ import { AppError, exitCodes } from "./domain/errors.js";
 import { AuthService } from "./auth/service.js";
 import { publicChallengeSchema } from "./auth/public-schema.js";
 
-const version = "0.2.0";
+const version = packageMetadata.version;
 const requestId = randomUUID();
 let config: Config | undefined;
 let commandName = "cli";

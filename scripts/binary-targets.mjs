@@ -9,3 +9,18 @@ export const binaryTargets = {
   "linux-arm64-musl": { target: "bun-linux-arm64-musl", executable: "xhs-dl" },
 };
 export const nativeTarget = `${process.platform === "win32" ? "windows" : process.platform}-${process.arch}`;
+
+export const distributionFiles = [
+  "README.md",
+  "THIRD_PARTY_NOTICES.md",
+  "skills/xhs-dl/SKILL.md",
+  "skills/xhs-dl/references/commands.md",
+  "docs/architecture-plan.md",
+  "docs/reference-research.md",
+  "docs/video-quality-investigation.md",
+  "docs/roadmap.md",
+  "docs/user-content-spec.md",
+  "docs/xhs-dl.conf.example",
+  "docs/BUN-LICENSE.txt",
+  "docs/releases.md",
+];

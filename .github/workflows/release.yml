@@ -1,0 +1,67 @@
+name: Release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node scripts/release.mjs validate "$RELEASE_TAG"
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+  checks:
+    needs: validate
+    uses: ./.github/workflows/ci.yml
+  binaries:
+    needs: validate
+    uses: ./.github/workflows/binaries.yml
+    with:
+      release: true
+  publish:
+    needs: [validate, checks, binaries]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: release-assets
+          merge-multiple: true
+      - run: node scripts/release.mjs checksums
+      - name: Create release with verified assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          args=(--verify-tag --title "xhs-dl $RELEASE_TAG")
+          if [[ -f "docs/releases/$RELEASE_TAG.md" ]]; then
+            args+=(--notes-file "docs/releases/$RELEASE_TAG.md")
+          else
+            args+=(--generate-notes)
+          fi
+          if [[ "$RELEASE_TAG" == *-* ]]; then
+            args+=(--prerelease)
+          else
+            args+=(--latest)
+          fi
+          gh release create "$RELEASE_TAG" release-assets/* "${args[@]}"

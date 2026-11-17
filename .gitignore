@@ -57,3 +57,6 @@ cookies*.txt
 
 # Standalone executable distributions (contain bundled runtimes).
 /binaries/
+
+# Versioned release archives assembled locally or in CI.
+/release-assets/
